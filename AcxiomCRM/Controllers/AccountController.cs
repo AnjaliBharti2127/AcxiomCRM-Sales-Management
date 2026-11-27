@@ -1,0 +1,15 @@
+using AcxiomCRM.Models;using AcxiomCRM.Services;using Microsoft.AspNetCore.Identity;using Microsoft.AspNetCore.Mvc;using Microsoft.AspNetCore.Authorization;using Microsoft.AspNetCore.RateLimiting;using Microsoft.AspNetCore.Antiforgery;using System.ComponentModel.DataAnnotations;
+namespace AcxiomCRM.Controllers;
+public class Credentials{[Required,EmailAddress] public string Email{get;set;}="";[Required,DataType(DataType.Password)]public string Password{get;set;}="";public string? FullName{get;set;}}
+public class AccountController(UserManager<ApplicationUser> users,SignInManager<ApplicationUser> sign,AuditService audit,IAntiforgery csrf):Controller{
+[AllowAnonymous] public IActionResult Login()=>View(new Credentials());
+[AllowAnonymous,HttpPost,EnableRateLimiting("login")] public async Task<IActionResult> Login(Credentials input){if(ModelState.IsValid&&await Authenticate(input))return RedirectToAction("Index","Dashboard");ModelState.AddModelError("","Invalid credentials or account unavailable.");return View(input);}
+async Task<bool> Authenticate(Credentials input){var u=await users.FindByEmailAsync(input.Email);var result=u!=null&&u.IsActive?await sign.PasswordSignInAsync(u,input.Password,false,true):Microsoft.AspNetCore.Identity.SignInResult.Failed;await audit.Write(result.Succeeded?"Login":result.IsLockedOut?"Lockout":"Failed Login","Authentication",u?.Id??"",result.Succeeded?"Success":"Failure",u?.Id);return result.Succeeded;}
+[AllowAnonymous] public IActionResult Register()=>View(new Credentials());
+[AllowAnonymous,HttpPost,EnableRateLimiting("login")] public async Task<IActionResult> Register(Credentials input){if(string.IsNullOrWhiteSpace(input.FullName))ModelState.AddModelError("FullName","Name is required.");if(!ModelState.IsValid)return View(input);var u=new ApplicationUser{Email=input.Email,UserName=input.Email,FullName=input.FullName!};var r=await users.CreateAsync(u,input.Password);if(r.Succeeded){var role=await users.AddToRoleAsync(u,"SalesExecutive");if(role.Succeeded){await audit.Write("Register","User",u.Id,userId:u.Id);await sign.SignInAsync(u,false);return RedirectToAction("Index","Dashboard");}await users.DeleteAsync(u);r=role;}foreach(var e in r.Errors)ModelState.AddModelError("",e.Description);return View(input);}
+[HttpPost] public async Task<IActionResult> Logout(){await audit.Write("Logout","Authentication","");await sign.SignOutAsync();return RedirectToAction(nameof(Login));}
+[AllowAnonymous] public IActionResult Denied()=>View();[AllowAnonymous] public IActionResult Error()=>View();
+[AllowAnonymous,HttpGet("/api/auth/csrf")] public IActionResult Token()=>Json(new{token=csrf.GetAndStoreTokens(HttpContext).RequestToken});
+[AllowAnonymous,HttpPost("/api/auth/login"),EnableRateLimiting("login")]public async Task<IActionResult> ApiLogin([FromBody] Credentials input){if(!ModelState.IsValid)return BadRequest(ModelState);return await Authenticate(input)?Ok(new{message="Authenticated"}):Unauthorized();}
+[HttpPost("/api/auth/logout")]public async Task<IActionResult> ApiLogout(){await audit.Write("Logout","Authentication","");await sign.SignOutAsync();return NoContent();}
+}
