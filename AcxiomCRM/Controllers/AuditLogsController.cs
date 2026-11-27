@@ -1,0 +1,3 @@
+using AcxiomCRM.Data;using Microsoft.AspNetCore.Authorization;using Microsoft.AspNetCore.Mvc;using Microsoft.EntityFrameworkCore;
+namespace AcxiomCRM.Controllers;
+[Authorize(Roles="Admin")]public class AuditLogsController(CrmDb db):Controller{public async Task<IActionResult> Index(string? actionName,string? entity,string? user,DateTime? from,DateTime? to){var q=db.AuditLogs.AsNoTracking();if(actionName!=null)q=q.Where(x=>x.Action==actionName);if(entity!=null)q=q.Where(x=>x.EntityName==entity);if(user!=null)q=q.Where(x=>x.UserId==user);if(from.HasValue)q=q.Where(x=>x.CreatedDate>=from);if(to.HasValue){var end=to.Value.Date.AddDays(1);q=q.Where(x=>x.CreatedDate<end);}return View(await q.OrderByDescending(x=>x.CreatedDate).Take(500).ToListAsync());}}

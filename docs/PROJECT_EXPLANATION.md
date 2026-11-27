@@ -1,0 +1,2 @@
+# Student explanation
+A lead is a potential buyer. Qualify it, convert it into a customer and optionally open a sales opportunity. A follow-up tracks the next communication. Activities record work done. The dashboard summarizes records available to each role. Controllers handle HTTP requests, services apply rules, EF Core stores data and Razor Views display it. Identity hashes passwords and manages authentication cookies. Authorization limits sales staff to assigned records and managers to their teams.

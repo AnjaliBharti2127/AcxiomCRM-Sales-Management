@@ -1,0 +1,10 @@
+using AcxiomCRM.Data;using AcxiomCRM.Models;using AcxiomCRM.Services;using AcxiomCRM.ViewModels;using Microsoft.AspNetCore.Mvc;using Microsoft.EntityFrameworkCore;
+namespace AcxiomCRM.Controllers.Api;
+[ApiController,Route("api/leads")] public class LeadsApiController(CrmDb db,CrmService crm,AuditService audit):ControllerBase {
+[HttpGet] public async Task<IActionResult> List(int page=1){page=Math.Clamp(page,1,100000);return Ok((await crm.Scope<Lead>().OrderBy(x=>x.Id).Skip((page-1)*50).Take(50).ToListAsync()).Select(x=>new{x.Id,Data=LeadInput.From(x)}));}
+[HttpGet("{id:int}")] public async Task<IActionResult> Get(int id){var e=await crm.Scope<Lead>().FirstOrDefaultAsync(x=>x.Id==id);return e==null?NotFound():Ok(new{e.Id,Data=LeadInput.From(e)});}
+[HttpPost] public Task<IActionResult> Create(LeadInput input)=>Save(null,input);
+[HttpPut("{id:int}")] public Task<IActionResult> Update(int id,LeadInput input)=>Save(id,input);
+async Task<IActionResult> Save(int? id,LeadInput input){var e=id==null?new Lead():await crm.Scope<Lead>().FirstOrDefaultAsync(x=>x.Id==id);if(e==null)return NotFound();var before=id==null?null:LeadInput.From(e);var oldStatus=e.Status;input.Apply(e);e.AssignedTo=input.AssignedTo??(id==null?crm.Id:e.AssignedTo);var error=await crm.Validate(e,id==null?null:oldStatus);if(error!=null)return BadRequest(new{error});await using var tx=await db.Database.BeginTransactionAsync();try{if(id==null)db.Add(e);await db.SaveChangesAsync();audit.Add(id==null?"Create":"Update","Lead",e.Id.ToString(),before,LeadInput.From(e));await db.SaveChangesAsync();await tx.CommitAsync();return id==null?CreatedAtAction(nameof(Get),new{id=e.Id},new{e.Id,Data=LeadInput.From(e)}):Ok(new{e.Id,Data=LeadInput.From(e)});}catch(DbUpdateException){await tx.RollbackAsync();return Conflict(new{error="Duplicate or invalid record."});}}
+[HttpDelete("{id:int}")] public async Task<IActionResult> Delete(int id){var e=await crm.Scope<Lead>().FirstOrDefaultAsync(x=>x.Id==id);if(e==null)return NotFound();e.IsDeleted=true;audit.Add("Delete","Lead",id.ToString(),LeadInput.From(e));await db.SaveChangesAsync();return NoContent();}
+}
