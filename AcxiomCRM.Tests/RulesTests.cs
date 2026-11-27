@@ -1,0 +1,5 @@
+using Xunit;using AcxiomCRM.Services;using AcxiomCRM.ViewModels;using System.ComponentModel.DataAnnotations;
+public class RulesTests{
+[Theory][InlineData("New","Contacted",true)][InlineData("New","Converted",false)][InlineData("Contacted","Qualified",true)][InlineData("Lost","New",false)]public void LeadTransition(string a,string b,bool expected)=>Assert.Equal(expected,CrmService.AllowedLead(a,b));
+[Theory][InlineData(-1)][InlineData(101)]public void ProbabilityRejected(int probability){var input=new OpportunityInput{OpportunityName="Test",CustomerId=1,Probability=probability};var results=new List<ValidationResult>();Assert.False(Validator.TryValidateObject(input,new ValidationContext(input),results,true));Assert.Contains(results,x=>x.MemberNames.Contains("Probability"));}
+[Fact]public void InvalidCustomer(){var input=new CustomerInput{CustomerName="",Email="bad",Phone="abc"};var results=new List<ValidationResult>();Assert.False(Validator.TryValidateObject(input,new ValidationContext(input),results,true));Assert.Contains(results,x=>x.MemberNames.Contains("Email"));Assert.Contains(results,x=>x.MemberNames.Contains("Phone"));}}
